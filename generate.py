@@ -36,6 +36,7 @@ def main():
     parser.add_argument("mode", type=str)
     parser.add_argument("--block_comments", action="store_true")
     parser.add_argument("--post_processors", type=str, nargs="+")
+    parser.add_argument("--sample_n", type=int, default=0)
 
     args = parser.parse_args()
 
@@ -49,17 +50,17 @@ def main():
 
     outputs = []
     try:
-        for sample in tqdm(load_dataset(args.completion_type)):
+        for sample in tqdm(load_dataset(args.completion_type, args.sample_n)):
             outputs.append(
                 handle_example(sample, args.completion_type, args.mode, model_wrapper, cache, args.post_processors)
             )
-            if len(outputs) == 10:
-                for o in outputs:
-                    print("=====", o["task_id"], "=====")
-                    print(o["completion"])
-                    print("====================")
-                    print()
-            if len(outputs) % 1000 == 0:
+            # if len(outputs) == 10:
+            #     for o in outputs:
+            #         print("=====", o["task_id"], "=====")
+            #         print(o["completion"])
+            #         print("====================")
+            #         print()
+            if len(outputs) % 10 == 0:
                 with open(args.cache_path, "w", encoding="utf-8") as f:
                     json.dump(cache, f)
         success = True

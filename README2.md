@@ -19,12 +19,19 @@ results.
 
 Python version: 3.8.12
 
+CUDA version: 11.7
+
 Docker CE version: 24.0.7
 
 Install dependencies:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install \
+torch==1.13.0+cu117 torchvision==0.14.0+cu117 torchaudio==0.13.0 \
+--extra-index-url https://download.pytorch.org/whl/cu117
+python -m pip install \
+Jinja2==3.1.2 openai==0.28.1 tiktoken==0.5.2 transformers==4.36.0 \
+tqdm==4.64.1 tree-sitter==0.20.4 requests==2.28.1 datasets==2.18.0
 ```
 
 If you encounter issues with `libstd++`, and you are using a conda environment, you can try this solution:
@@ -45,19 +52,6 @@ git clone https://github.com/ntunlp/ExecEval
 cd ExecEval
 docker build . -t exec-eval:1.0
 docker run -it -p 5000:5000 -e NUM_WORKERS=2 exec-eval:1.0
-```
-
-## Evaluate OCI Hosted Models
-Modify the value for "--sample_n" in "run_generate.sh" and "run_evaluate.sh".
-"0" means no sampling, "100" means run 100 samples.
-
-Generate:
-```bash
-./run_generate.sh "openai.gpt-5-nano"
-```
-Evaluate:
-```bash
-./run_evaluate.sh "openai.gpt-5-nano"
 ```
 
 ## Reproduce Results in Our Paper
