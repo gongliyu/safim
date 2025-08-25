@@ -1,5 +1,6 @@
 import os
 import time
+import random
 from argparse import Namespace
 
 import openai
@@ -7,6 +8,8 @@ import tiktoken
 import torch
 import transformers
 from transformers import AutoModelForCausalLM, AutoTokenizer, NoBadWordsLogitsProcessor
+from awesomeml.tools.oci.chat import chat
+from awesomeml.tools.oci.cohere_chat import cohere_chat
 
 
 class ModelWrapper:
@@ -597,6 +600,74 @@ class MagicCoderModel(ModelWrapper):
         else:
             raise NotImplementedError()
 
+def exponential_backoff_with_jitter(retries, base_delay=1, max_delay=60):
+    """
+    Implements exponential backoff with full jitter.
+
+    Parameters:
+    retries (int): The number of retries that have been attempted.
+    base_delay (float): The base delay in seconds.
+    max_delay (float): The maximum delay limit in seconds.
+
+    Returns:
+    float: The delay time to wait before the next retry.
+    """
+    # Calculate the exponential backoff delay (2^retries * base_delay)
+    delay = base_delay * (2 ** retries)
+    # Cap the delay to max_delay
+    delay = min(delay, max_delay)
+    # Add jitter (random value between 0 and the delay)
+    jitter = random.uniform(0, delay)
+    return jitter
+
+class OCIChatModel(ModelWrapper):
+    def __init__(self, model_name):
+        self.model_name = model_name
+
+    def invoke(self, prompt: str) -> str:
+        result = chat(prompt, model_id=self.model_name)
+        return result
+
+    def assemble_infilling_prompt(self, prefix: str, suffix: str, reverse: bool = False) -> str:
+        if reverse:
+            return suffix + "\n\n" + prefix
+        else:
+            raise NotImplementedError()
+
+    # def assemble_infilling_prompt(self, prefix: str, suffix: str, reverse: bool = False) -> str:
+    #     if reverse:
+    #         return "<fim-prefix>" + "<fim-suffix>" + suffix + "<fim-middle>" + prefix
+    #     else:
+    #         return "<fim-prefix>" + prefix + "<fim-suffix>" + suffix + "<fim-middle>"
+
+class OCICohereChatModel(ModelWrapper):
+    def __init__(self, model_name):
+        self.model_name = model_name
+
+    def invoke(self, prompt: str) -> str:
+        retries = 0
+        while True:
+            if retries > 5:
+                return ""
+            try:
+                result = cohere_chat(prompt, model_id=self.model_name)
+            except Exception as e:
+                raise e
+        return result
+
+    def assemble_infilling_prompt(self, prefix: str, suffix: str, reverse: bool = False) -> str:
+        if reverse:
+            return suffix + "\n\n" + prefix
+        else:
+            raise NotImplementedError()
+
+    # def assemble_infilling_prompt(self, prefix: str, suffix: str, reverse: bool = False) -> str:
+    #     if reverse:
+    #         return "<fim-prefix>" + "<fim-suffix>" + suffix + "<fim-middle>" + prefix
+    #     else:
+    #         return "<fim-prefix>" + prefix + "<fim-suffix>" + suffix + "<fim-middle>"
+
+
 
 def build_model(args: Namespace) -> ModelWrapper:
     if args.model_name.startswith("codellama/CodeLlama"):
@@ -621,6 +692,10 @@ def build_model(args: Namespace) -> ModelWrapper:
         model_wrapper = SantacoderModel(args.model_name, 2048, args.block_comments)
     elif args.model_name.startswith("ise-uiuc/Magicoder"):
         model_wrapper = MagicCoderModel(args.model_name, 4096, args.block_comments)
+    elif args.model_name.startswith("openai") or args.model_name.startswith("xai") or args.model_name.startswith("meta"):
+        model_wrapper = OCIChatModel(args.model_name)
+    elif args.model_name.startswith("cohere"):
+        model_wrapper = OCICohereChatModel(args.model_name)
     else:
         raise ValueError(args.model_name)
     return model_wrapper
