@@ -1,6 +1,7 @@
 set -e
 
 MDL=$1
+sample_n=100
 
 mkdir -p cache outputs_block
 mkdir -p cache outputs_control
@@ -12,7 +13,7 @@ python generate.py \
        outputs_block/${MDL}-fim-tb.jsonl \
        fewshot \
        --post_processors extract_code truncate_fewshot truncate_line_until_block \
-       --sample_n 20
+       --sample_n ${sample_n}
 
 python generate.py \
        $MDL \
@@ -21,7 +22,7 @@ python generate.py \
        outputs_control/${MDL}-fim-tc.jsonl \
        fewshot \
        --post_processors extract_code truncate_fewshot truncate_control \
-       --sample_n 20
+       --sample_n ${sample_n}
 
 python generate.py \
        $MDL \
@@ -30,4 +31,4 @@ python generate.py \
        outputs_api/${MDL}-fim-ta.jsonl \
        fewshot \
        --post_processors extract_code truncate_fewshot truncate_api_call \
-       --sample_n 20
+       --sample_n ${sample_n}
