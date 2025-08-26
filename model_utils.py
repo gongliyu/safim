@@ -600,7 +600,7 @@ class MagicCoderModel(ModelWrapper):
         else:
             raise NotImplementedError()
 
-def exponential_backoff_with_jitter(retries, base_delay=1, max_delay=60):
+def exponential_backoff_with_jitter(retries, base_delay=4, max_delay=60):
     """
     Implements exponential backoff with full jitter.
 
@@ -621,11 +621,25 @@ def exponential_backoff_with_jitter(retries, base_delay=1, max_delay=60):
     return jitter
 
 class OCIChatModel(ModelWrapper):
-    def __init__(self, model_name):
+    def __init__(self, model_name, **kwargs):
         self.model_name = model_name
+        self.kwargs = kwargs
 
     def invoke(self, prompt: str) -> str:
-        result = chat(prompt, model_id=self.model_name)
+        retries = 0
+        while True:
+            if retries >= 5:
+                return ""
+            try:
+                result = chat(prompt, model_id=self.model_name, **self.kwargs)
+                break
+            except Exception as e:
+                if "timeout" in str(e).lower() or "internal server error" in str(e).lower() or "remote end closed connection" in str(e).lower():
+                    retries += 1
+                    print(f'retries: {retries}')
+                    time.sleep(exponential_backoff_with_jitter(retries))
+                else:
+                    raise e
         return result
 
     def assemble_infilling_prompt(self, prefix: str, suffix: str, reverse: bool = False) -> str:
@@ -634,15 +648,10 @@ class OCIChatModel(ModelWrapper):
         else:
             raise NotImplementedError()
 
-    # def assemble_infilling_prompt(self, prefix: str, suffix: str, reverse: bool = False) -> str:
-    #     if reverse:
-    #         return "<fim-prefix>" + "<fim-suffix>" + suffix + "<fim-middle>" + prefix
-    #     else:
-    #         return "<fim-prefix>" + prefix + "<fim-suffix>" + suffix + "<fim-middle>"
-
 class OCICohereChatModel(ModelWrapper):
-    def __init__(self, model_name):
+    def __init__(self, model_name, **kwargs):
         self.model_name = model_name
+        self.kwargs = kwargs
 
     def invoke(self, prompt: str) -> str:
         retries = 0
@@ -650,9 +659,15 @@ class OCICohereChatModel(ModelWrapper):
             if retries > 5:
                 return ""
             try:
-                result = cohere_chat(prompt, model_id=self.model_name)
+                result = cohere_chat(prompt, model_id=self.model_name, **self.kwargs)
+                break
             except Exception as e:
-                raise e
+                if "timeout" in str(e).lower() or "internal server error" in str(e).lower():
+                    retries += 1
+                    print(f'retries: {retries}')
+                    time.sleep(exponential_backoff_with_jitter(retries))
+                else:
+                    raise e
         return result
 
     def assemble_infilling_prompt(self, prefix: str, suffix: str, reverse: bool = False) -> str:
@@ -660,12 +675,6 @@ class OCICohereChatModel(ModelWrapper):
             return suffix + "\n\n" + prefix
         else:
             raise NotImplementedError()
-
-    # def assemble_infilling_prompt(self, prefix: str, suffix: str, reverse: bool = False) -> str:
-    #     if reverse:
-    #         return "<fim-prefix>" + "<fim-suffix>" + suffix + "<fim-middle>" + prefix
-    #     else:
-    #         return "<fim-prefix>" + prefix + "<fim-suffix>" + suffix + "<fim-middle>"
 
 
 
@@ -692,6 +701,8 @@ def build_model(args: Namespace) -> ModelWrapper:
         model_wrapper = SantacoderModel(args.model_name, 2048, args.block_comments)
     elif args.model_name.startswith("ise-uiuc/Magicoder"):
         model_wrapper = MagicCoderModel(args.model_name, 4096, args.block_comments)
+    elif args.model_name.startswith("xai.grok-4"):
+        model_wrapper = OCIChatModel(args.model_name, endpoint="https://ppe.inference.generativeai.us-chicago-1.oci.oraclecloud.com")
     elif args.model_name.startswith("openai") or args.model_name.startswith("xai") or args.model_name.startswith("meta"):
         model_wrapper = OCIChatModel(args.model_name)
     elif args.model_name.startswith("cohere"):

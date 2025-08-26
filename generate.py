@@ -60,7 +60,7 @@ def main():
             #         print(o["completion"])
             #         print("====================")
             #         print()
-            if len(outputs) % 10 == 0:
+            if len(outputs) % 5 == 0:
                 with open(args.cache_path, "w", encoding="utf-8") as f:
                     json.dump(cache, f)
         success = True
