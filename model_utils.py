@@ -634,7 +634,7 @@ class OCIChatModel(ModelWrapper):
                 result = chat(prompt, model_id=self.model_name, **self.kwargs)
                 break
             except Exception as e:
-                if "timeout" in str(e).lower() or "internal server error" in str(e).lower() or "remote end closed connection" in str(e).lower():
+                if "timeout" in str(e).lower():
                     retries += 1
                     print(f'retries: {retries}')
                     time.sleep(exponential_backoff_with_jitter(retries))
@@ -662,7 +662,7 @@ class OCICohereChatModel(ModelWrapper):
                 result = cohere_chat(prompt, model_id=self.model_name, **self.kwargs)
                 break
             except Exception as e:
-                if "timeout" in str(e).lower() or "internal server error" in str(e).lower():
+                if "timeout" in str(e).lower():
                     retries += 1
                     print(f'retries: {retries}')
                     time.sleep(exponential_backoff_with_jitter(retries))
@@ -701,8 +701,6 @@ def build_model(args: Namespace) -> ModelWrapper:
         model_wrapper = SantacoderModel(args.model_name, 2048, args.block_comments)
     elif args.model_name.startswith("ise-uiuc/Magicoder"):
         model_wrapper = MagicCoderModel(args.model_name, 4096, args.block_comments)
-    elif args.model_name.startswith("xai.grok-4"):
-        model_wrapper = OCIChatModel(args.model_name, endpoint="https://ppe.inference.generativeai.us-chicago-1.oci.oraclecloud.com")
     elif args.model_name.startswith("openai") or args.model_name.startswith("xai") or args.model_name.startswith("meta"):
         model_wrapper = OCIChatModel(args.model_name)
     elif args.model_name.startswith("cohere"):
