@@ -24,8 +24,11 @@ def stream_jsonl(filename: str) -> Iterable[Dict]:
 
 def load_dataset(task, sample_n=0):
     ds = datasets.load_dataset("gonglinyuan/safim", task, split="test")
-    if sample_n > 0 and sample_n < ds.shape[0]:
-        ds = ds.select(range(sample_n))
+    n = ds.shape[0]
+    if sample_n > 0 and sample_n < n:
+        step = n // sample_n
+        idx = list(range(0, n, step))[:sample_n]
+        ds = ds.select(idx)
     lst = []
     for m in ds:
         m["unit_tests"] = json.loads(m["unit_tests"])

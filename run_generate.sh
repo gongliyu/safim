@@ -1,7 +1,7 @@
 set -e
 
 MDL=$1
-sample_n=100
+sample_n=200
 
 mkdir -p cache outputs_block
 mkdir -p cache outputs_control
