@@ -8,8 +8,135 @@ import tiktoken
 import torch
 import transformers
 from transformers import AutoModelForCausalLM, AutoTokenizer, NoBadWordsLogitsProcessor
-from awesomeml.tools.oci.chat import chat
-from awesomeml.tools.oci.cohere_chat import cohere_chat
+import oci
+
+def get_oci_signer(oci_config):
+    if "sessions" in oci_config['key_file']:
+        token = None
+        with open(oci_config['security_token_file'], 'r') as f:
+            token = f.read()
+        private_key = oci.signer.load_private_key_from_file(oci_config['key_file'])
+        return oci.auth.signers.SecurityTokenSigner(token, private_key)
+    else:
+        return oci.Signer(
+            tenancy=oci_config['tenancy'],
+            user=oci_config['user'],
+            fingerprint=oci_config['fingerprint'],
+            private_key_file_location=oci_config['key_file'],
+            pass_phrase=""
+        )
+
+def chat(prompt,
+        endpoint=None,
+        model_id='openai.gpt-4o',
+        endpoint_id=None,
+        compartment_id=None,
+        max_tokens=None,
+        temperature=None,
+        frequency_penalty=None,
+        top_p=None,
+        top_k=None,
+        presence_penalty=None):
+    endpoint = endpoint or 'https://inference.generativeai.us-chicago-1.oci.oraclecloud.com'
+    CONFIG_PROFILE = "DEFAULT"
+    config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)
+
+
+
+    if 'sessions' in config['key_file']:
+        compartment_id = compartment_id or 'ocid1.tenancy.oc1..aaaaaaaaduwpzmkfjvsqshva6oclndiq4bpxainkjsnmtugf5ep6fpafyufa'
+        auth = get_oci_signer(config)
+        generative_ai_inference_client = oci.generative_ai_inference.GenerativeAiInferenceClient(config=config,
+                                                                                                 signer=auth,
+                                                                                                 service_endpoint=endpoint,
+                                                                                                 retry_strategy=oci.retry.NoneRetryStrategy(),
+                                                                                                 timeout=(10, 300))
+    else:
+        compartment_id = compartment_id or config['tenancy'] or 'ocid1.tenancy.oc1..aaaaaaaaduwpzmkfjvsqshva6oclndiq4bpxainkjsnmtugf5ep6fpafyufa'
+        generative_ai_inference_client = oci.generative_ai_inference.GenerativeAiInferenceClient(config=config,
+                                                                                                 service_endpoint=endpoint,
+                                                                                                 retry_strategy=oci.retry.NoneRetryStrategy(),
+                                                                                                 timeout=(10, 300))
+
+    chat_detail = oci.generative_ai_inference.models.ChatDetails()
+
+    content = oci.generative_ai_inference.models.TextContent()
+    content.text = prompt
+    message = oci.generative_ai_inference.models.Message()
+    message.role = "USER"
+    message.content = [content]
+
+    chat_request = oci.generative_ai_inference.models.GenericChatRequest()
+    chat_request.messages = [message]
+    chat_request.max_tokens = max_tokens
+    chat_request.temperature = temperature
+    chat_request.frequency_penalty = frequency_penalty
+    chat_request.presence_penalty = presence_penalty
+    chat_request.top_p = top_p
+    chat_request.top_k = top_k
+
+    if endpoint_id:
+        chat_detail.serving_mode = oci.generative_ai_inference.models.DedicatedServingMode(endpoint_id=endpoint_id)
+    else:
+        chat_detail.serving_mode = oci.generative_ai_inference.models.OnDemandServingMode(model_id=model_id)
+    chat_detail.chat_request = chat_request
+    chat_detail.compartment_id = compartment_id
+
+    chat_response = generative_ai_inference_client.chat(chat_detail)
+    return chat_response.data.chat_response.choices[0].message.content[0].text
+
+
+def cohere_chat(prompt,
+                endpoint=None,
+                model_id='cohere.command-a-03-2025',
+                endpoint_id=None,
+                compartment_id=None,
+                max_tokens=None,
+                temperature=None,
+                frequency_penalty=None,
+                top_p=None,
+                top_k=None):
+    endpoint = endpoint or 'https://inference.generativeai.us-chicago-1.oci.oraclecloud.com'
+    CONFIG_PROFILE = "DEFAULT"
+    config = oci.config.from_file('~/.oci/config', CONFIG_PROFILE)
+
+
+
+    if 'sessions' in config['key_file']:
+        compartment_id = compartment_id or 'ocid1.tenancy.oc1..aaaaaaaaduwpzmkfjvsqshva6oclndiq4bpxainkjsnmtugf5ep6fpafyufa'
+        auth = get_oci_signer(config)
+        generative_ai_inference_client = oci.generative_ai_inference.GenerativeAiInferenceClient(config=config,
+                                                                                                 signer=auth,
+                                                                                                 service_endpoint=endpoint,
+                                                                                                 retry_strategy=oci.retry.NoneRetryStrategy(),
+                                                                                                 timeout=(10, 300))
+    else:
+        compartment_id = compartment_id or config['tenancy'] or 'ocid1.tenancy.oc1..aaaaaaaaduwpzmkfjvsqshva6oclndiq4bpxainkjsnmtugf5ep6fpafyufa'
+        generative_ai_inference_client = oci.generative_ai_inference.GenerativeAiInferenceClient(config=config,
+                                                                                                 service_endpoint=endpoint,
+                                                                                                 retry_strategy=oci.retry.NoneRetryStrategy(),
+                                                                                                 timeout=(10, 300))
+
+    chat_detail = oci.generative_ai_inference.models.ChatDetails()
+
+    chat_request = oci.generative_ai_inference.models.CohereChatRequest()
+    chat_request.message = prompt
+    chat_request.max_tokens = max_tokens
+    chat_request.temperature = temperature
+    chat_request.frequency_penalty = frequency_penalty
+    chat_request.top_p = top_p
+    chat_request.top_k = top_k
+
+    if endpoint_id:
+        chat_detail.serving_mode = oci.generative_ai_inference.models.DedicatedServingMode(endpoint_id=endpoint_id)
+    else:
+        chat_detail.serving_mode = oci.generative_ai_inference.models.OnDemandServingMode(model_id=model_id)
+    chat_detail.chat_request = chat_request
+    chat_detail.compartment_id = compartment_id
+
+    chat_response = generative_ai_inference_client.chat(chat_detail)
+
+    return chat_response.data.chat_response.text
 
 
 class ModelWrapper:
@@ -628,13 +755,14 @@ class OCIChatModel(ModelWrapper):
     def invoke(self, prompt: str) -> str:
         retries = 0
         while True:
-            if retries >= 5:
+            if retries >= 3:
                 return ""
             try:
                 result = chat(prompt, model_id=self.model_name, **self.kwargs)
                 break
             except Exception as e:
-                if "timeout" in str(e).lower():
+                # if "timeout" in str(e).lower() or "remote end closed" in str(e).lower() or "connection reset" in str(e).lower():
+                if "timeout" in str(e).lower() or "remote end closed" in str(e).lower():
                     retries += 1
                     print(f'retries: {retries}')
                     time.sleep(exponential_backoff_with_jitter(retries))
@@ -656,13 +784,14 @@ class OCICohereChatModel(ModelWrapper):
     def invoke(self, prompt: str) -> str:
         retries = 0
         while True:
-            if retries > 5:
+            if retries > 3:
                 return ""
             try:
                 result = cohere_chat(prompt, model_id=self.model_name, **self.kwargs)
                 break
             except Exception as e:
-                if "timeout" in str(e).lower():
+                #if "timeout" in str(e).lower() or "remote end closed" in str(e).lower() or "connection reset" in str(e).lower():
+                if "timeout" in str(e).lower() or "remote end closed" in str(e).lower():
                     retries += 1
                     print(f'retries: {retries}')
                     time.sleep(exponential_backoff_with_jitter(retries))
